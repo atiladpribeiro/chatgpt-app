@@ -1,0 +1,51 @@
+{
+  "name": "chatgpt-linux-app",
+  "productName": "ChatGPT App",
+  "version": "2.0.0",
+  "description": "ChatGPT desktop client for Linux with isolated sessions, KDE integration and a configurable mini window.",
+  "author": "Alexandephilia",
+  "license": "MIT",
+  "desktopName": "io.github.alexandephilia.chatgptlinux.desktop",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "build:appimage": "electron-builder --linux AppImage"
+  },
+  "build": {
+    "appId": "io.github.alexandephilia.chatgptlinux",
+    "productName": "ChatGPT App",
+    "artifactName": "chatgpt_app.${ext}",
+    "asar": true,
+    "asarUnpack": ["node_modules/jszip/**"],
+    "files": [
+      "main.js",
+      "workspace-tools.js",
+      "chatgpt-exporter.user.js",
+      "chatgpt.png",
+      "quick-access*.html",
+      "quick-access*.css",
+      "quick-access*.js",
+      "settings*.html",
+      "settings*.css",
+      "settings*.js",
+      "node_modules/**",
+      "package.json"
+    ],
+    "linux": {
+      "category": "Utility",
+      "icon": "chatgpt.png",
+      "target": ["AppImage"]
+    }
+  },
+  "dependencies": {
+    "@zumer/snapdom": "2.24.10",
+    "html2canvas": "^1.4.1",
+    "jszip": "3.10.1"
+  },
+  "devDependencies": {
+    "electron": "42.5.0",
+    "electron-builder": "26.0.12",
+    "jsdom": "26.1.0"
+  }
+}

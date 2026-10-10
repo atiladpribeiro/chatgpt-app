@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Configurações do ChatGPT App</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="chatgpt.png" alt="">
+        <div><strong>ChatGPT App</strong><span>Configurações</span></div>
+      </div>
+      <nav aria-label="Categorias">
+        <button class="nav-item active" data-section="general" type="button"><span class="nav-icon">⌂</span>Geral</button>
+        <button class="nav-item" data-section="appearance" type="button"><span class="nav-icon">◫</span>Janela e aparência</button>
+        <button class="nav-item" data-section="login" type="button"><span class="nav-icon">●</span>Login e sessão</button>
+        <button class="nav-item" data-section="integration" type="button"><span class="nav-icon">⌘</span>Integração KDE</button>
+        <button class="nav-item" data-section="diagnostics" type="button"><span class="nav-icon">i</span>Diagnóstico</button>
+      </nav>
+      <div class="sidebar-footer">
+        <span id="version">ChatGPT App</span>
+        <span id="saveState">Tudo salvo</span>
+      </div>
+    </aside>
+
+    <main class="content">
+      <header class="page-header">
+        <div><h1 id="pageTitle">Geral</h1><p id="pageDescription">Inicialização e comportamento do aplicativo.</p></div>
+        <span id="globalStatus" class="status-pill neutral">Carregando</span>
+      </header>
+
+      <section id="general" class="settings-section active">
+        <div class="section-block">
+          <h2>Inicialização</h2>
+          <div class="setting-row">
+            <div><strong>Iniciar com o sistema</strong><p>Carrega o ChatGPT automaticamente ao entrar no KDE.</p></div>
+            <label class="switch"><input id="autoStart" type="checkbox"><span></span></label>
+          </div>
+          <div class="setting-row dependent" data-depends="autoStart">
+            <div><strong>Iniciar recolhido na bandeja</strong><p>Mantém a área de trabalho livre durante a inicialização.</p></div>
+            <label class="switch"><input id="autoStartToTray" type="checkbox"><span></span></label>
+          </div>
+        </div>
+
+        <div class="section-block">
+          <h2>Comportamento das janelas</h2>
+          <div class="setting-row">
+            <div><strong>Minimizar para a bandeja</strong><p>O app continua disponível sem ocupar a barra de tarefas.</p></div>
+            <label class="switch"><input id="minimizeToTray" type="checkbox"><span></span></label>
+          </div>
+          <div class="setting-row">
+            <div><strong>Fechar para a bandeja</strong><p>O botão fechar oculta a janela; use Sair na bandeja para encerrar.</p></div>
+            <label class="switch"><input id="closeToTray" type="checkbox"><span></span></label>
+          </div>
+          <div class="setting-row">
+            <div><strong>Economia em segundo plano</strong><p>Reduz timers e atividade visual quando uma janela está oculta.</p></div>
+            <label class="switch"><input id="backgroundEfficiency" type="checkbox"><span></span></label>
+          </div>
+        </div>
+      </section>
+
+      <section id="appearance" class="settings-section">
+        <div class="section-block">
+          <h2>Zoom da interface</h2>
+          <p class="section-copy">O valor é aplicado à janela principal e à mini janela e permanece salvo.</p>
+          <div class="zoom-control">
+            <button id="zoomOut" class="icon-button" type="button" title="Diminuir zoom" aria-label="Diminuir zoom">−</button>
+            <input id="zoomRange" type="range" min="60" max="140" step="5" value="100">
+            <output id="zoomValue">100%</output>
+            <button id="zoomIn" class="icon-button" type="button" title="Aumentar zoom" aria-label="Aumentar zoom">+</button>
+            <button id="zoomReset" class="secondary-button" type="button">Restaurar</button>
+          </div>
+        </div>
+
+        <div class="section-block">
+          <h2>Mini janela</h2>
+          <div class="setting-row">
+            <div><strong>Sempre acima das outras janelas</strong><p>Mantém a mini janela visível em qualquer área de trabalho.</p></div>
+            <label class="switch"><input id="miniAlwaysOnTop" type="checkbox"><span></span></label>
+          </div>
+          <div class="setting-row">
+            <div><strong>Abrir na conversa ativa</strong><p>Ao criar a mini janela, usa a conversa aberta na janela principal.</p></div>
+            <label class="switch"><input id="syncMiniWithMain" type="checkbox"><span></span></label>
+          </div>
+          <div class="info-band">A mini janela abre com 430 × 565 px, centralizada na parte inferior da tela ativa.</div>
+        </div>
+      </section>
+
+      <section id="login" class="settings-section">
+        <div class="session-hero">
+          <div class="session-indicator" id="sessionIndicator"></div>
+          <div><span class="eyebrow">Sessão exclusiva do aplicativo</span><h2 id="sessionTitle">Verificando sessão…</h2><p id="sessionDescription">Aguarde enquanto o app verifica o perfil isolado.</p></div>
+          <button id="refreshSession" class="icon-button" type="button" title="Verificar novamente" aria-label="Verificar novamente">↻</button>
+        </div>
+
+        <div class="section-block">
+          <h2>Entrar ou reparar</h2>
+          <p class="section-copy">O app usa um perfil próprio. Alterar ou encerrar a conta no navegador não modifica uma sessão válida do aplicativo.</p>
+          <div class="button-grid">
+            <button id="beginExternalLogin" class="primary-button" type="button">Abrir login no navegador</button>
+            <button id="importSession" class="secondary-button" type="button">Importar sessão atual</button>
+            <button id="freshLogin" class="secondary-button danger-outline" type="button">Reiniciar login do app</button>
+          </div>
+          <div id="loginStatus" class="inline-status" aria-live="polite"></div>
+        </div>
+
+        <div class="section-block">
+          <h2>Automação de recuperação</h2>
+          <div class="setting-row">
+            <div><strong>Tentar reparar sessão expirada automaticamente</strong><p>Pode importar uma sessão válida do Zen ou Firefox apenas quando a tela de login for detectada.</p></div>
+            <label class="switch"><input id="automaticSessionRepair" type="checkbox"><span></span></label>
+          </div>
+          <div class="warning-band">Desativado por padrão para impedir recarregamentos inesperados e manter o app independente dos navegadores.</div>
+        </div>
+      </section>
+
+      <section id="integration" class="settings-section">
+        <div class="integration-summary">
+          <div><span class="eyebrow">Atalho global</span><strong>Alt + Espaço</strong><p>Ação “Abrir mini janela” no mesmo lançador do ChatGPT.</p></div>
+          <span id="shortcutBadge" class="status-pill neutral">Verificando</span>
+        </div>
+        <div class="section-block">
+          <h2>Integração com o KDE</h2>
+          <div class="setting-row">
+            <div><strong>Reparar integração ao iniciar</strong><p>Atualiza o caminho do AppImage após movimentação pelo Gear Lever.</p></div>
+            <label class="switch"><input id="repairKdeShortcutOnStart" type="checkbox"><span></span></label>
+          </div>
+          <div class="button-row">
+            <button id="installShortcut" class="primary-button" type="button">Reparar Alt + Espaço</button>
+            <button id="openKde" class="secondary-button" type="button">Abrir atalhos do KDE</button>
+          </div>
+          <div id="shortcutStatus" class="inline-status" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section id="diagnostics" class="settings-section">
+        <div class="diagnostic-toolbar">
+          <div><h2>Estado do aplicativo</h2><p>Informações coletadas localmente, sem expor cookies ou credenciais.</p></div>
+          <button id="refreshDiagnostics" class="secondary-button" type="button">Atualizar</button>
+        </div>
+        <dl id="diagnosticGrid" class="diagnostic-grid"></dl>
+        <div class="section-block compact">
+          <h2>Manutenção</h2>
+          <div class="button-row">
+            <button id="clearCache" class="secondary-button" type="button">Limpar cache</button>
+          </div>
+          <div id="maintenanceStatus" class="inline-status" aria-live="polite"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="settings-renderer.js"></script>
+</body>
+</html>

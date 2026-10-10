@@ -1,0 +1,28 @@
+name: Build Linux AppImage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  appimage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm build:appimage
+        env:
+          ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/electron-builder-cache
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt-app-linux-x64
+          path: dist/*.AppImage

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acesso rápido ao ChatGPT</title>
+  <link rel="stylesheet" href="quick-access.css">
+</head>
+<body>
+  <main class="panel">
+    <button class="close" type="button" aria-label="Fechar" id="close">×</button>
+    <img class="logo" src="chatgpt.png" alt="">
+    <span class="eyebrow">Acesso rápido</span>
+    <h1>ChatGPT onde você estiver</h1>
+    <p>Abra uma mini janela sobre qualquer aplicativo sem interromper o que está fazendo.</p>
+    <div class="shortcut" aria-label="Alt mais Espaço">
+      <kbd>Alt</kbd><span>+</span><kbd>Espaço</kbd>
+    </div>
+    <p class="sub">O atalho pode ser alterado nas configurações do KDE.</p>
+    <div class="actions">
+      <button class="primary" id="openMini" type="button">Abrir mini janela</button>
+      <button class="secondary" id="openKde" type="button">Configurar atalho</button>
+    </div>
+  </main>
+  <script src="quick-access-renderer.js"></script>
+</body>
+</html>
