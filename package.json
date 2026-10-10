@@ -10,7 +10,7 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test test/*.test.cjs",
-    "build:appimage": "electron-builder --linux AppImage"
+    "build:appimage": "electron-builder --linux AppImage --publish never"
   },
   "build": {
     "appId": "io.github.alexandephilia.chatgptlinux",
