@@ -1236,6 +1236,13 @@ function readDesktopValue(content, key) {
   return match ? match[1].trim() : '';
 }
 
+function stableDesktopIcon(appImagePath, existingIcon = '') {
+  if (existingIcon && !existingIcon.startsWith('/tmp/.mount_')) return existingIcon;
+  const appName = path.basename(appImagePath, path.extname(appImagePath));
+  const managedIcon = path.join(path.dirname(appImagePath), '.icons', appName);
+  return fs.existsSync(managedIcon) ? managedIcon : 'chatgpt';
+}
+
 function desktopEntryForShortcut(desktopId, appImagePath) {
   const desktopPath = path.join(kdeDesktopDir(), desktopId);
   let existing = '';
@@ -1244,7 +1251,7 @@ function desktopEntryForShortcut(desktopId, appImagePath) {
   } catch {}
 
   const existingIcon = readDesktopValue(existing, 'Icon');
-  const icon = existingIcon || iconPath();
+  const icon = stableDesktopIcon(appImagePath, existingIcon);
   const appExec = appExecWithSandbox(appImagePath);
 
   return `[Desktop Entry]
@@ -1277,7 +1284,7 @@ X-KDE-Shortcuts=
 
 function autostartEntry(appImagePath) {
   const appExec = appExecWithSandbox(appImagePath);
-  const icon = readDesktopValue(safeReadFile(path.join(kdeDesktopDir(), kdeDesktopId())), 'Icon') || iconPath();
+  const icon = stableDesktopIcon(appImagePath, readDesktopValue(safeReadFile(path.join(kdeDesktopDir(), kdeDesktopId())), 'Icon'));
   const autostartArg = settings.autoStartToTray ? START_MINIMIZED_ARG : '';
 
   return `[Desktop Entry]
@@ -4175,6 +4182,8 @@ async function runKdeShortcutInstallTest() {
   const shortcutsFile = path.join(baseDir, 'kglobalshortcutsrc');
   const fakeAppImage = path.join(baseDir, 'chatgpt_app.appimage');
   fs.mkdirSync(desktopDir, { recursive: true });
+  fs.mkdirSync(path.join(baseDir, '.icons'), { recursive: true });
+  fs.writeFileSync(path.join(baseDir, '.icons', 'chatgpt_app'), 'icon');
   fs.writeFileSync(fakeAppImage, '');
   fs.writeFileSync(shortcutsFile, '[services][org.kde.krunner.desktop]\n_launch=Search\\tAlt+F2,Search\\tAlt+F2,KRunner\n\n[services][chatgpt.desktop]\nQuickAsk=Alt+Space,Alt+Space,Abrir mini janela\nPreferences=none,none,Preferencias\n_launch=none,none,ChatGPT App\n');
 
@@ -4191,6 +4200,10 @@ async function runKdeShortcutInstallTest() {
   const result = await installKdeQuickAskShortcut();
   const desktopText = fs.readFileSync(path.join(desktopDir, 'chatgpt_app.desktop'), 'utf8');
   const shortcutText = fs.readFileSync(shortcutsFile, 'utf8');
+
+  if (!desktopText.includes(`Icon=${path.join(baseDir, '.icons', 'chatgpt_app')}`) || desktopText.includes('/tmp/.mount_')) {
+    throw new Error('Desktop launcher must use a persistent icon.');
+  }
 
   if (fs.existsSync(path.join(desktopDir, 'chatgpt.desktop')) || shortcutText.includes('[services][chatgpt.desktop]')) {
     throw new Error('Legacy launcher still shadows the other desktop application.');
