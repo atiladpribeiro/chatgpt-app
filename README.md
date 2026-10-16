@@ -35,7 +35,7 @@ O projeto usa Electron 42.5.0. Se o ambiente de build bloquear scripts de instal
 
 O AppImage pode ser integrado ao menu pelo Gear Lever. Para substituir uma instalacao existente, feche o aplicativo, faca uma copia do AppImage anterior e substitua apenas o arquivo no mesmo caminho. Nao remova o perfil em `~/.config/ChatGPT App`: ele contem sessao, preferencias e dados locais. A troca do AppImage por si so nao exige apagar cookies nem configuracoes.
 
-O atalho global do KDE usa a acao de janela compacta do arquivo `.desktop`. Confira em **Configuracoes do sistema > Atalhos > Aplicativos**. O funcionamento de `Alt+Espaco` depende de nao haver conflito com outra acao global.
+O atalho global do KDE usa a acao `QuickAsk` de `chatgpt_app.desktop`, separada do lancador `chatgpt.desktop` de outros aplicativos. Confira em **Configuracoes do sistema > Atalhos > Aplicativos**. O funcionamento de `Alt+Espaco` depende de nao haver conflito com outra acao global.
 
 ## Limites e seguranca
 

@@ -1218,13 +1218,13 @@ function kdeDesktopId() {
   if (process.env.CHATGPT_KDE_DESKTOP_ID) {
     return process.env.CHATGPT_KDE_DESKTOP_ID;
   }
-
-  const gearLeverDesktop = path.join(kdeDesktopDir(), 'chatgpt.desktop');
-  if (fs.existsSync(gearLeverDesktop)) {
-    return 'chatgpt.desktop';
-  }
-
   return 'chatgpt_app.desktop';
+}
+
+function isLegacyAppImageOverride(content) {
+  return readDesktopValue(content, 'Name') === SERVICE.name
+    && readDesktopValue(content, 'Exec').includes('chatgpt_app.appimage')
+    && content.includes('[Desktop Action QuickAsk]');
 }
 
 function appExecWithSandbox(appImagePath) {
@@ -1406,12 +1406,34 @@ function removeIniSection(content, section) {
   ].join('\n').replace(/\n{3,}/g, '\n\n') + '\n';
 }
 
+function removeOwnLegacyShortcut(content) {
+  const section = 'services][chatgpt.desktop';
+  const header = `[${section}]`;
+  const start = content.split(/\r?\n/).indexOf(header);
+  if (start < 0) return content;
+
+  const lines = content.split(/\r?\n/);
+  const endOffset = lines.slice(start + 1).findIndex((line) => /^\[.+]$/.test(line));
+  const end = endOffset < 0 ? lines.length : start + 1 + endOffset;
+  const entries = lines.slice(start + 1, end);
+  if (!entries.includes('_launch=none,none,ChatGPT App')
+    || !entries.some((line) => line.startsWith('QuickAsk=') && shortcutValueHasAltSpace(line))) {
+    return content;
+  }
+
+  const ownKeys = new Set(['QuickAsk', 'Preferences', '_launch']);
+  const preserved = entries.filter((line) => !ownKeys.has(line.split('=', 1)[0]));
+  return preserved.some((line) => line.trim())
+    ? [...lines.slice(0, start + 1), ...preserved, ...lines.slice(end)].join('\n')
+    : removeIniSection(content, section);
+}
+
 function backupFileIfExists(filePath) {
   if (!fs.existsSync(filePath) || process.env.CHATGPT_SKIP_CONFIG_BACKUP === '1') {
     return null;
   }
 
-  const backupPath = `${filePath}.codex-backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+  const backupPath = `${filePath}.backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
   fs.copyFileSync(filePath, backupPath);
   return backupPath;
 }
@@ -1454,7 +1476,7 @@ function removeQuickAskDesktopEntry() {
   return { path: filePath, backup };
 }
 
-async function runKdeShortcutRefresh(desktopId) {
+async function runKdeShortcutRefresh(desktopId, migratedLegacyShortcut = false) {
   if (process.env.CHATGPT_SKIP_KDE_DBUS === '1') {
     return {
       refreshed: false,
@@ -1462,7 +1484,14 @@ async function runKdeShortcutRefresh(desktopId) {
     };
   }
 
-  await optionalExecFileOutput('kbuildsycoca6', [], { timeout: 15000 });
+  await execFileOutput('kbuildsycoca6', [], { timeout: 15000 });
+
+  if (migratedLegacyShortcut) {
+    await execFileOutput('busctl', [
+      '--user', 'call', 'org.kde.kglobalaccel', '/kglobalaccel',
+      'org.kde.KGlobalAccel', 'unregister', 'ss', 'chatgpt.desktop', QUICK_ASK_DESKTOP_ACTION,
+    ]);
+  }
 
   await optionalExecFileOutput('busctl', [
     '--user',
@@ -1480,14 +1509,12 @@ async function runKdeShortcutRefresh(desktopId) {
     '0',
   ]);
 
-  await optionalExecFileOutput('qdbus6', [
-    '--literal',
-    'org.kde.kglobalaccel',
-    '/kglobalaccel',
-    'org.kde.KGlobalAccel.doRegister',
-    `${desktopId},${QUICK_ASK_DESKTOP_ACTION},${SERVICE.name},Abrir mini janela`,
+  await execFileOutput('busctl', [
+    '--user', 'call', 'org.kde.kglobalaccel', '/kglobalaccel',
+    'org.kde.KGlobalAccel', 'doRegister', 'as', '4',
+    desktopId, QUICK_ASK_DESKTOP_ACTION, SERVICE.name, 'Abrir mini janela',
   ]);
-  await optionalExecFileOutput('busctl', [
+  const assigned = await execFileOutput('busctl', [
     '--user',
     'call',
     'org.kde.kglobalaccel',
@@ -1504,38 +1531,27 @@ async function runKdeShortcutRefresh(desktopId) {
     String(QUICK_ASK_QT_KEY),
     '0',
   ]);
-  await optionalExecFileOutput('busctl', [
-    '--user',
-    'call',
-    'org.kde.kglobalaccel',
-    '/kglobalaccel',
-    'org.kde.KGlobalAccel',
-    'setForeignShortcut',
-    'asai',
-    '4',
-    desktopId,
-    QUICK_ASK_DESKTOP_ACTION,
-    SERVICE.name,
-    'Abrir mini janela',
-    '1',
-    String(QUICK_ASK_QT_KEY),
+  if (!assigned.includes(`ai 1 ${QUICK_ASK_QT_KEY}`)) {
+    throw new Error(`${QUICK_ASK_SHORTCUT} was not accepted by KDE: ${assigned.trim()}`);
+  }
+  const active = await execFileOutput('busctl', [
+    '--user', 'call', 'org.kde.kglobalaccel', '/kglobalaccel',
+    'org.kde.KGlobalAccel', 'getGlobalShortcutsByKey', 'i', String(QUICK_ASK_QT_KEY),
   ]);
-  await wait(500);
-  await optionalExecFileOutput('qdbus6', [
-    '--literal',
-    'org.kde.kglobalaccel',
-    '/kglobalaccel',
-    'org.kde.KGlobalAccel.getGlobalShortcutsByKey',
-    String(QUICK_ASK_QT_KEY),
-  ]);
+  if (!active.includes(`"${desktopId}"`) || !active.includes(`"${QUICK_ASK_DESKTOP_ACTION}"`)) {
+    throw new Error(`${QUICK_ASK_SHORTCUT} is not active for ${desktopId}: ${active.trim()}`);
+  }
 
-  return { refreshed: true };
+  return { refreshed: true, active: true };
 }
 
 function kdeShortcutContentWithQuickAsk(shortcutsContent, desktopId) {
   const mainSection = `services][${desktopId}`;
   const withoutOldQuickAskDesktop = removeIniSection(shortcutsContent, 'services][chatgpt-quickask.desktop');
-  return setIniSectionKeys(withoutOldQuickAskDesktop, mainSection, {
+  const migrated = desktopId === 'chatgpt_app.desktop'
+    ? removeOwnLegacyShortcut(withoutOldQuickAskDesktop)
+    : withoutOldQuickAskDesktop;
+  return setIniSectionKeys(migrated, mainSection, {
     [QUICK_ASK_DESKTOP_ACTION]: `${QUICK_ASK_SHORTCUT},${QUICK_ASK_SHORTCUT},Abrir mini janela`,
     Preferences: 'none,none,Preferencias',
     _launch: `none,none,${SERVICE.name}`,
@@ -1557,7 +1573,13 @@ async function installKdeQuickAskShortcut(options = {}) {
     shortcutsContent = fs.readFileSync(shortcutsPath, 'utf8');
   } catch {}
 
-  const conflict = findShortcutConflict(shortcutsContent, desktopId);
+  const withoutOldQuickAsk = removeIniSection(shortcutsContent, 'services][chatgpt-quickask.desktop');
+  const withoutOwnLegacy = desktopId === 'chatgpt_app.desktop'
+    ? removeOwnLegacyShortcut(withoutOldQuickAsk)
+    : withoutOldQuickAsk;
+  const migratedLegacyShortcut = desktopId === 'chatgpt_app.desktop'
+    && withoutOwnLegacy !== withoutOldQuickAsk;
+  const conflict = findShortcutConflict(withoutOwnLegacy, desktopId);
   if (conflict && !options.force) {
     throw new Error(`${QUICK_ASK_SHORTCUT} ja esta usado por [${conflict.section}] ${conflict.key}.`);
   }
@@ -1567,12 +1589,17 @@ async function installKdeQuickAskShortcut(options = {}) {
   const shortcutsBackup = backupIfChanging(shortcutsPath, kdeShortcutContentWithQuickAsk(shortcutsContent, desktopId));
   const legacyDesktop = disableLegacyDesktopEntry(desktopId);
   const removedQuickAskDesktop = removeQuickAskDesktopEntry();
+  const oldDesktopPath = path.join(desktopDir, 'chatgpt.desktop');
+  const oldDesktopContent = safeReadFile(oldDesktopPath);
+  const removeOldDesktop = desktopId === 'chatgpt_app.desktop' && isLegacyAppImageOverride(oldDesktopContent);
+  const oldDesktopBackup = removeOldDesktop ? backupFileIfExists(oldDesktopPath) : null;
+  if (removeOldDesktop) fs.unlinkSync(oldDesktopPath);
   writeFileIfChanged(desktopPath, desktopContent);
 
   const updatedShortcuts = kdeShortcutContentWithQuickAsk(shortcutsContent, desktopId);
   writeFileIfChanged(shortcutsPath, updatedShortcuts);
 
-  const refresh = await runKdeShortcutRefresh(desktopId);
+  const refresh = await runKdeShortcutRefresh(desktopId, migratedLegacyShortcut);
   const finalShortcuts = kdeShortcutContentWithQuickAsk(safeReadFile(shortcutsPath), desktopId);
   writeFileIfChanged(shortcutsPath, finalShortcuts);
 
@@ -1586,6 +1613,7 @@ async function installKdeQuickAskShortcut(options = {}) {
     desktopBackup,
     shortcutsBackup,
     legacyDesktop,
+    oldDesktopBackup,
     removedQuickAskDesktop,
     ...refresh,
   };
@@ -1628,7 +1656,7 @@ async function syncDesktopIntegrationOnStart() {
   }
 
   try {
-    await installKdeQuickAskShortcut({ force: true });
+    await installKdeQuickAskShortcut();
   } catch (error) {
     console.warn(`[${SERVICE.id}] KDE shortcut auto-repair failed`, error.message);
   }
@@ -4145,22 +4173,28 @@ async function runKdeShortcutInstallTest() {
   const desktopDir = path.join(baseDir, 'applications');
   const autostartTestDir = path.join(baseDir, 'autostart');
   const shortcutsFile = path.join(baseDir, 'kglobalshortcutsrc');
-  const fakeAppImage = path.join(baseDir, 'ChatGPT.AppImage');
+  const fakeAppImage = path.join(baseDir, 'chatgpt_app.appimage');
   fs.mkdirSync(desktopDir, { recursive: true });
   fs.writeFileSync(fakeAppImage, '');
-  fs.writeFileSync(shortcutsFile, '[services][org.kde.krunner.desktop]\n_launch=Search\\tAlt+F2,Search\\tAlt+F2,KRunner\n');
+  fs.writeFileSync(shortcutsFile, '[services][org.kde.krunner.desktop]\n_launch=Search\\tAlt+F2,Search\\tAlt+F2,KRunner\n\n[services][chatgpt.desktop]\nQuickAsk=Alt+Space,Alt+Space,Abrir mini janela\nPreferences=none,none,Preferencias\n_launch=none,none,ChatGPT App\n');
 
   process.env.CHATGPT_KDE_DESKTOP_DIR = desktopDir;
   process.env.CHATGPT_KDE_SHORTCUTS_FILE = shortcutsFile;
-  process.env.CHATGPT_KDE_DESKTOP_ID = 'chatgpt.desktop';
+  process.env.CHATGPT_KDE_DESKTOP_ID = 'chatgpt_app.desktop';
   process.env.CHATGPT_AUTOSTART_DIR = autostartTestDir;
   process.env.CHATGPT_APPIMAGE_PATH = fakeAppImage;
   process.env.CHATGPT_SKIP_KDE_DBUS = '1';
   process.env.CHATGPT_SKIP_CONFIG_BACKUP = '1';
 
+  fs.writeFileSync(path.join(desktopDir, 'chatgpt.desktop'), desktopEntryForShortcut('chatgpt.desktop', fakeAppImage));
+
   const result = await installKdeQuickAskShortcut();
-  const desktopText = fs.readFileSync(path.join(desktopDir, 'chatgpt.desktop'), 'utf8');
+  const desktopText = fs.readFileSync(path.join(desktopDir, 'chatgpt_app.desktop'), 'utf8');
   const shortcutText = fs.readFileSync(shortcutsFile, 'utf8');
+
+  if (fs.existsSync(path.join(desktopDir, 'chatgpt.desktop')) || shortcutText.includes('[services][chatgpt.desktop]')) {
+    throw new Error('Legacy launcher still shadows the other desktop application.');
+  }
 
   if (!desktopText.includes(`${fakeAppImage}" --no-sandbox ${TOGGLE_MINI_ARG}`)) {
     throw new Error('Desktop action does not point QuickAsk at the current AppImage.');
@@ -4180,6 +4214,20 @@ async function runKdeShortcutInstallTest() {
 
   if (!shortcutText.includes(`${QUICK_ASK_DESKTOP_ACTION}=${QUICK_ASK_SHORTCUT},${QUICK_ASK_SHORTCUT},Abrir mini janela`)) {
     throw new Error('KDE shortcut file does not contain the Alt+Space ChatGPT QuickAsk action.');
+  }
+  if (!shortcutText.includes('[services][chatgpt_app.desktop]')) {
+    throw new Error('KDE shortcut must belong to the AppImage launcher.');
+  }
+  if (!findShortcutConflict('[services][other.desktop]\n_launch=Alt+Space,Alt+Space,Other\n', 'chatgpt_app.desktop')) {
+    throw new Error('Unrelated shortcut conflicts must remain protected.');
+  }
+
+  const otherDesktopPath = path.join(desktopDir, 'chatgpt.desktop');
+  const otherDesktopContent = '[Desktop Entry]\nName=ChatGPT\nExec=chatgpt %U\n';
+  fs.writeFileSync(otherDesktopPath, otherDesktopContent);
+  await installKdeQuickAskShortcut();
+  if (fs.readFileSync(otherDesktopPath, 'utf8') !== otherDesktopContent) {
+    throw new Error('Repair must not modify the other desktop application.');
   }
 
   settings.autoStart = true;
